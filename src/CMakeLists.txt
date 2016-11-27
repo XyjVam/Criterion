@@ -7,6 +7,7 @@
 set(SOURCE_FILES
   src/core/abort.c
   src/core/abort.h
+  src/core/assert.c
   src/core/report.c
   src/core/report.h
   src/core/runner.c
