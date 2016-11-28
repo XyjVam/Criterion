@@ -76,6 +76,7 @@ set(SOURCE_FILES
   src/string/extglobmatch.h
   src/string/brz.c
   src/string/brz.h
+  src/string/xxd.c
 
   dependencies/nanopb/pb_common.c
   dependencies/nanopb/pb_common.h

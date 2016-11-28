@@ -33,6 +33,11 @@
 #include "designated-initializer-compat.h"
 #include "preprocess.h"
 
+struct cr_mem {
+    size_t size;
+    const void *data;
+};
+
 enum cri_assert_result_type {
     CRI_ASSERT_RT_NONE = 0,
     CRI_ASSERT_RT_DATA,
@@ -61,6 +66,7 @@ CR_API void cri_assert_node_negate(struct cri_assert_node *tree);
 CR_API void cri_assert_node_term(struct cri_assert_node *tree);
 CR_API void cri_assert_node_send(const char *file, size_t line, struct cri_assert_node *tree);
 CR_API char *cri_assert_message(const char *fmt, ...);
+CR_API char *cri_string_xxd(const void *data, size_t size);
 
 CR_END_C_API
 
@@ -179,6 +185,9 @@ CR_END_C_API
 
 #define CRI_ASSERT_TEST_TAG_ldbl      ,
 #define CRI_ASSERT_TYPE_TAG_ldbl      long double
+
+#define CRI_ASSERT_TEST_TAG_mem       ,
+#define CRI_ASSERT_TYPE_TAG_mem       struct cr_mem
 
 #ifdef __cplusplus
 # include <complex>
@@ -515,6 +524,44 @@ CRI_ASSERT_DECLARE_COMPLEX_FN(cx_ldbl, "Lf")
 CRI_ASSERT_DECLARE_COMPLEX_FN(cx_flt, "f", f)
 CRI_ASSERT_DECLARE_COMPLEX_FN(cx_dbl, "f", )
 CRI_ASSERT_DECLARE_COMPLEX_FN(cx_ldbl, "Lf", l)
+#endif
+
+#ifdef __cplusplus
+bool operator==(const struct cr_mem &m1, const struct cr_mem &m2)
+{
+    return m1.size == m2.size ? !memcmp(m1.data, m2.data, m1.size) : 0;
+}
+
+bool operator<(const struct cr_mem &m1, const struct cr_mem &m2)
+{
+    return m1.size == m2.size ? memcmp(m1.data, m2.data, m1.size) < 0 : (m1.size > m2.size ? 1 : 0);
+}
+
+std::ostream &operator<<(std::ostream &s, const struct cr_mem &m)
+{
+    char *str = cri_string_xxd(m.data, m.size);
+
+    s << std::string(str);
+    free(str);
+    return s;
+}
+#else
+# include <string.h>
+
+static inline int cr_user_eq_mem(struct cr_mem m1, struct cr_mem m2)
+{
+    return m1.size == m2.size ? !memcmp(m1.data, m2.data, m1.size) : 0;
+};
+
+static inline int cr_user_cmp_mem(struct cr_mem m1, struct cr_mem m2)
+{
+    return m1.size == m2.size ? memcmp(m1.data, m2.data, m1.size) : (m1.size > m2.size ? 1 : -1);
+};
+
+static inline char *cr_user_tostr_mem(struct cr_mem *m)
+{
+    return cri_string_xxd(m->data, m->size);
+};
 #endif
 
 #undef cr_assert_user
