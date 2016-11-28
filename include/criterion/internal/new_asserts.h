@@ -290,10 +290,16 @@ template <typename T> constexpr T &cri_val_escape(T &t) { return t; }
         return out;                                                   \
     } ()
 # define CRI_ASSERT_UNPRINTABLE(Tag, Var)    (void *) CRI_USER_TOSTR(Tag, Var)
+# define CRI_ASSERT_RELOPS    using namespace std::rel_ops
+# define CRI_AUTOTYPE         auto
 #else
 # define CRI_VALUE_ESCAPE(T, X)              X
 # define CRI_USER_TOSTR(Tag, Var)            CRI_USER_TAG_ID(tostr, Tag)(&(Var))
 # define CRI_ASSERT_UNPRINTABLE(Tag, Var)    (void *) "<unprintable>"
+# define CRI_ASSERT_RELOPS    do {} while (0)
+# ifdef __GNUC__
+#  define CRI_AUTOTYPE        __extension__ __auto_type
+# endif
 #endif
 
 #define CRI_ASSERT_SPECIFIER_VALUE(Val)           \
@@ -305,8 +311,10 @@ template <typename T> constexpr T &cri_val_escape(T &t) { return t; }
         cri_assert_node_add(cri_node, &cri_tmpn); \
     } while (0)
 
-#define CRI_ASSERT_SPECIFIER_OP2(Op, Name, Lhs, Rhs)                         \
+#ifdef CRI_AUTOTYPE
+# define CRI_ASSERT_SPECIFIER_OP2(Op, Name, Lhs, Rhs)                        \
     1; do {                                                                  \
+        CRI_ASSERT_RELOPS;                                                   \
         __typeof__ (Lhs)cri_lhs = CRI_VALUE_ESCAPE(decltype (cri_lhs), Lhs); \
         __typeof__ (Rhs)cri_rhs = CRI_VALUE_ESCAPE(decltype (cri_rhs), Rhs); \
         cri_cond_un = Op (cri_lhs, cri_rhs);                                 \
@@ -318,9 +326,14 @@ template <typename T> constexpr T &cri_val_escape(T &t) { return t; }
         cri_tmpn.pass = cri_cond_un;                                         \
         cri_assert_node_add(cri_node, &cri_tmpn);                            \
     } while (0)
+#else
+# define CRI_ASSERT_SPECIFIER_OP2(Op, Name, Lhs, Rhs) \
+    1; CR_COMPILE_ERROR(Name without a tag parameter is unsupported on this compiler.)
+#endif
 
 #define CRI_ASSERT_SPECIFIER_OP3(Op, Name, Tag, Lhs, Rhs)                             \
     1; do {                                                                           \
+        CRI_ASSERT_RELOPS;                                                            \
         CRI_ASSERT_TYPE_TAG(Tag) cri_lhs = CRI_VALUE_ESCAPE(decltype (cri_lhs), Lhs); \
         CRI_ASSERT_TYPE_TAG(Tag) cri_rhs = CRI_VALUE_ESCAPE(decltype (cri_rhs), Rhs); \
         cri_cond_un = Op (Tag, cri_lhs, cri_rhs);                                     \
