@@ -34,7 +34,8 @@
 #include "preprocess.h"
 
 enum cri_assert_result_type {
-    CRI_ASSERT_RT_DATA = 1,
+    CRI_ASSERT_RT_NONE = 0,
+    CRI_ASSERT_RT_DATA,
     CRI_ASSERT_RT_FILE,
 
     CRI_ASSERT_RT_STRING = 1 << 8 | CRI_ASSERT_RT_DATA,
@@ -65,7 +66,7 @@ CR_END_C_API
 
 #define CRI_SPECIFIER_INDIRECT()      CRI_ASSERT_SPECIFIER
 
-#define CRI_ASSERT_SPECIFIER(Spec)    CRI_IF_DEFINED(CRI_ASSERT_TEST_SPECIFIER_ ## Spec, CR_CONCAT2, (CRI_ASSERT_SPECIFIER_, Spec), (Spec), )
+#define CRI_ASSERT_SPECIFIER(Spec)    CRI_IF_DEFINED(CRI_ASSERT_TEST_SPECIFIER_ ## Spec, CR_CONCAT2, (CRI_ASSERT_SPECIFIER_, Spec), CRI_ASSERT_SPECIFIER_VALUE, (Spec))
 
 #define CRI_ASSERT_FAIL(File, Line, Fail, ...)                           \
     CR_EVAL(do {                                                         \
@@ -271,10 +272,11 @@ std::ostream &operator<<(std::ostream &s, char c)
 /* *INDENT-ON* */
 
 # include <type_traits>
-template <typename T> T && cri_val_escape(T && t) {
+# include <utility>
+template <typename T> constexpr T && cri_val_escape(T && t) {
     return std::move(t);
 }
-template <typename T> T &cri_val_escape(T &t) { return t; }
+template <typename T> constexpr T &cri_val_escape(T &t) { return t; }
 # define CRI_VALUE_ESCAPE(T, X)              cri_val_escape<std::remove_reference<T>::type>(X)
 # define CRI_USER_TOSTR(Tag, Var)                                     \
     [&Var]() -> char * {                                              \
@@ -289,24 +291,32 @@ template <typename T> T &cri_val_escape(T &t) { return t; }
     } ()
 # define CRI_ASSERT_UNPRINTABLE(Tag, Var)    (void *) CRI_USER_TOSTR(Tag, Var)
 #else
-# define CRI_VALUE_ESCAPE(T, X)              (X)
+# define CRI_VALUE_ESCAPE(T, X)              X
 # define CRI_USER_TOSTR(Tag, Var)            CRI_USER_TAG_ID(tostr, Tag)(&(Var))
 # define CRI_ASSERT_UNPRINTABLE(Tag, Var)    (void *) "<unprintable>"
 #endif
+
+#define CRI_ASSERT_SPECIFIER_VALUE(Val)           \
+    1; do {                                       \
+        cri_cond_un = (Val);                      \
+        cri_assert_node_init(&cri_tmpn);          \
+        cri_tmpn.repr = CR_STR(Val);              \
+        cri_tmpn.pass = cri_cond_un;              \
+        cri_assert_node_add(cri_node, &cri_tmpn); \
+    } while (0)
 
 #define CRI_ASSERT_SPECIFIER_OP2(Op, Name, Lhs, Rhs)                         \
     1; do {                                                                  \
         __typeof__ (Lhs)cri_lhs = CRI_VALUE_ESCAPE(decltype (cri_lhs), Lhs); \
         __typeof__ (Rhs)cri_rhs = CRI_VALUE_ESCAPE(decltype (cri_rhs), Rhs); \
         cri_cond_un = Op (cri_lhs, cri_rhs);                                 \
-        if (!cri_cond_un) {                                                  \
-            cri_assert_node_init(&cri_tmpn);                                 \
-            cri_tmpn.rtype = CRI_ASSERT_RT_STRING;                           \
-            cri_tmpn.repr = CR_STR(Name(Lhs, Rhs));                          \
-            cri_tmpn.actual = CRI_ASSERT_UNPRINTABLE(Tag, cri_lhs);          \
-            cri_tmpn.expected = CRI_ASSERT_UNPRINTABLE(Tag, cri_rhs);        \
-            cri_assert_node_add(cri_node, &cri_tmpn);                        \
-        }                                                                    \
+        cri_assert_node_init(&cri_tmpn);                                     \
+        cri_tmpn.rtype = CRI_ASSERT_RT_STRING;                               \
+        cri_tmpn.repr = CR_STR(Name(Lhs, Rhs));                              \
+        cri_tmpn.actual = CRI_ASSERT_UNPRINTABLE(Tag, cri_lhs);              \
+        cri_tmpn.expected = CRI_ASSERT_UNPRINTABLE(Tag, cri_rhs);            \
+        cri_tmpn.pass = cri_cond_un;                                         \
+        cri_assert_node_add(cri_node, &cri_tmpn);                            \
     } while (0)
 
 #define CRI_ASSERT_SPECIFIER_OP3(Op, Name, Tag, Lhs, Rhs)                             \
@@ -314,14 +324,13 @@ template <typename T> T &cri_val_escape(T &t) { return t; }
         CRI_ASSERT_TYPE_TAG(Tag) cri_lhs = CRI_VALUE_ESCAPE(decltype (cri_lhs), Lhs); \
         CRI_ASSERT_TYPE_TAG(Tag) cri_rhs = CRI_VALUE_ESCAPE(decltype (cri_rhs), Rhs); \
         cri_cond_un = Op (Tag, cri_lhs, cri_rhs);                                     \
-        if (!cri_cond_un) {                                                           \
-            cri_assert_node_init(&cri_tmpn);                                          \
-            cri_tmpn.rtype = CRI_ASSERT_RT_STRING;                                    \
-            cri_tmpn.repr = CR_STR(Name(Tag, Lhs, Rhs));                              \
-            cri_tmpn.actual = (void *) CRI_USER_TOSTR(Tag, cri_lhs);                  \
-            cri_tmpn.expected = (void *) CRI_USER_TOSTR(Tag, cri_rhs);                \
-            cri_assert_node_add(cri_node, &cri_tmpn);                                 \
-        }                                                                             \
+        cri_assert_node_init(&cri_tmpn);                                              \
+        cri_tmpn.rtype = CRI_ASSERT_RT_STRING;                                        \
+        cri_tmpn.repr = CR_STR(Name(Tag, Lhs, Rhs));                                  \
+        cri_tmpn.actual = (void *) CRI_USER_TOSTR(Tag, cri_lhs);                      \
+        cri_tmpn.expected = (void *) CRI_USER_TOSTR(Tag, cri_rhs);                    \
+        cri_tmpn.pass = cri_cond_un;                                                  \
+        cri_assert_node_add(cri_node, &cri_tmpn);                                     \
     } while (0)
 
 #define CRI_ASSERT_SPECIFIER_OP_HELPER(Op, N, ...)    CR_DEFER(CR_CONCAT)(CRI_ASSERT_SPECIFIER_ ## Op, N)(__VA_ARGS__)

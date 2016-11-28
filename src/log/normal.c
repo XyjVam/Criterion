@@ -38,6 +38,8 @@
 #include "config.h"
 #include "common.h"
 
+#define LOG_DIFF_THRESHOLD    25
+
 typedef const char *const msg_t;
 
 static msg_t msg_pre_all = N_("Criterion v%s\n");
@@ -49,9 +51,7 @@ static msg_t msg_post_test_timed = N_("%1$s::%2$s: (%3$3.2fs)\n");
 static msg_t msg_post_test_skip = N_("%1$s::%2$s: Test was skipped\n");
 static msg_t msg_test_disabled = N_("%1$s::%2$s: Test is disabled\n");
 static msg_t msg_assert_fail = N_("%1$s%2$s%3$s:%4$s%5$d%6$s: %7$s\n");
-static msg_t msg_assert_cmp_repr = N_("  %1$s:\n");
-static msg_t msg_assert_cmp_expected = N_("    Expected: %1$s%2$s%3$s\n");
-static msg_t msg_assert_cmp_actual = N_("    Actual:   %1$s%2$s%3$s\n");
+static msg_t msg_assert_cmp = N_("  %1$s: %2$s[-%3$s-]%4$s%5$s{+%6$s+}%7$s\n");
 static msg_t msg_theory_fail = N_("  Theory %1$s::%2$s failed with the following parameters: (%3$s)\n");
 static msg_t msg_test_timeout = N_("%1$s::%2$s: Timed out. (%3$3.2fs)\n");
 static msg_t msg_test_crash_line = N_("%1$s%2$s%3$s:%4$s%5$u%6$s: Unexpected signal caught below this line!\n");
@@ -72,9 +72,7 @@ static msg_t msg_post_test_timed = "%s::%s: (%3.2fs)\n";
 static msg_t msg_post_test_skip = "%s::%s: Test was skipped\n";
 static msg_t msg_test_disabled = "%s::%s: Test is disabled\n";
 static msg_t msg_assert_fail = "%s%s%s:%s%d%s: %s\n";
-static msg_t msg_assert_cmp_repr = N_("  %s:\n");
-static msg_t msg_assert_cmp_expected = N_("    Expected: %s%s%s\n");
-static msg_t msg_assert_cmp_actual = N_("    Actual:   %s%s%s\n");
+static msg_t msg_assert_cmp = "  %s: Expected: %s%s%s, Actual: %s%s%s\n";
 static msg_t msg_theory_fail = "  Theory %s::%s failed with the following parameters: (%s)\n";
 static msg_t msg_test_timeout = "%s::%s: Timed out. (%3.2fs)\n";
 static msg_t msg_test_crash_line = "%s%s%s:%s%u%s: Unexpected signal caught below this line!\n";
@@ -184,20 +182,13 @@ void normal_log_assert_cmp(struct criterion_assert_stats *stats,
         int akind, void *adata, size_t asize)
 {
     if (!stats->passed) {
-        criterion_pimportant(CRITERION_PREFIX_DASHES,
-                _(msg_assert_cmp_repr), repr);
-
-        if (ekind == criterion_protocol_result_object_result_type_DATA) {
+        if (esize + asize <= LOG_DIFF_THRESHOLD
+                && ekind == criterion_protocol_result_object_result_type_DATA
+                && akind == criterion_protocol_result_object_result_type_DATA) {
             criterion_pimportant(CRITERION_PREFIX_DASHES,
-                    _(msg_assert_cmp_expected),
-                    CR_FG_GREEN, (char *) edata, CR_RESET
-                    );
-        }
-        if (akind == criterion_protocol_result_object_result_type_DATA) {
-            criterion_pimportant(CRITERION_PREFIX_DASHES,
-                    _(msg_assert_cmp_actual),
-                    CR_FG_RED, (char *) adata, CR_RESET
-                    );
+                    _(msg_assert_cmp), repr,
+                    CR_FG_RED, (char *) adata, CR_RESET,
+                    CR_FG_GREEN, (char *) edata, CR_RESET);
         }
     }
 }

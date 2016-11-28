@@ -67,8 +67,13 @@ static size_t leaf_count(struct cri_assert_node *tree)
 {
     size_t count = 0;
 
-    for (size_t i = 0; i < tree->nchild; ++i)
-        count += tree->children[i].nchild > 0 ? leaf_count(&tree->children[i]) : 1;
+    for (size_t i = 0; i < tree->nchild; ++i) {
+        struct cri_assert_node *node = &tree->children[i];
+        if (node->nchild > 0)
+            count += leaf_count(&tree->children[i]);
+        if (node->rtype && !node->pass)
+            ++count;
+    }
     return count;
 }
 
@@ -98,8 +103,10 @@ static criterion_protocol_result *collect_leaves(
             res = collect_leaves(res, node);
             continue;
         }
+        if (!node->rtype || node->pass)
+            continue;
 
-        res->repr = node->repr;
+        res->repr = (char *) node->repr;
         res->which_value = criterion_protocol_result_obj_tag;
 
         if (node->expected) {
@@ -124,13 +131,13 @@ CR_API void cri_assert_node_send(const char *file, size_t line, struct cri_asser
     collect_leaves(results, tree);
 
     criterion_protocol_msg msg = criterion_message(assert,
-                    .message = tree->repr,
+                    .message = (char *) tree->repr,
                     .passed = false,
                     .file = (char *) file,
                     .has_line = true,
                     .line = line,
                     .results_count = nb_results,
-                    .results = results,
+                    .results = nb_results ? results : NULL,
                     );
 
     criterion_message_set_id(msg);
