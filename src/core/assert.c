@@ -25,6 +25,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _MSC_VER
+# include <malloc.h>
+#endif
+
 #include "criterion/criterion.h"
 #include "criterion/abort.h"
 #include "criterion/internal/new_asserts.h"
@@ -126,7 +130,11 @@ CR_API void cri_assert_node_send(const char *file, size_t line, struct cri_asser
 {
     size_t nb_results = leaf_count(tree);
 
+#ifdef _MSC_VER
+    criterion_protocol_result *results = _alloca(sizeof (*results) * nb_results);
+#else
     criterion_protocol_result results[nb_results];
+#endif
 
     collect_leaves(results, tree);
 
